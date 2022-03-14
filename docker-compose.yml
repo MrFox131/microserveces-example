@@ -1,0 +1,40 @@
+version: '3'
+services:
+  postgres-service:
+    image: postgres:latest
+    ports:
+      - 5432:5432/tcp
+    environment:
+      POSTGRES_DB: gokit
+      POSTGRES_PASSWORD: postgres
+    volumes:
+      - /var/lib/postgres
+      - ./dbscripts/postgres:/docker-entrypoint-initdb.d
+    networks:
+      - owl_network
+
+  consumer:
+    build: .
+    ports:
+      - 8080:8080
+    networks:
+     - owl_network
+
+  rabbitmq:
+    image: rabbitmq:3-management
+    environment:
+      - RABBITMQ_DEFAULT_USER=${RABBITMQ_DEFAULT_USER:-guest}
+      - RABBITMQ_DEFAULT_PASS=${RABBITMQ_DEFAULT_PASS:-guest}
+#    volumes:
+#      - ./.docker/rabbitmq/etc/:/etc/rabbitmq/
+#      - ./.docker/rabbitmq/data/:/var/lib/rabbitmq/
+#      - ./.docker/rabbitmq/logs/:/var/log/rabbitmq/
+    ports:
+      - 5672:5672
+      - 15672:15672
+    networks:
+      - owl_network
+
+
+networks:
+  owl_network:
