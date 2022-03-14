@@ -16,7 +16,7 @@ type AmqpHandlers struct {
 
 type AmqpSubscriber amqptransport.Subscriber
 
-func NewHTTPServer(ctx context.Context, endpoints Endpoints) http.Handler {
+func NewHTTPServer(_ context.Context, endpoints Endpoints) http.Handler {
 	r := mux.NewRouter()
 	r.Use(commonMiddleware)
 
@@ -34,20 +34,20 @@ func NewHTTPServer(ctx context.Context, endpoints Endpoints) http.Handler {
 	return r
 }
 
-func NewAMQPSubscribers(ctx context.Context, e Endpoints) AmqpHandlers {
+func commonMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Add("Content-Type", "application/json")
+		next.ServeHTTP(w, r)
+	})
+}
+
+func NewAMQPSubscribers(_ context.Context, e Endpoints) AmqpHandlers {
 	createUserSubscriber := amqptransport.NewSubscriber(e.CreateUser, decodeUserAMQPReq, encodeAMQPResponse, amqptransport.SubscriberErrorEncoder(amqptransport.ReplyErrorEncoder))
 	getUserSubscriber := amqptransport.NewSubscriber(e.GetUser, decodeEmailAMQPReq, encodeAMQPResponse, amqptransport.SubscriberErrorEncoder(amqptransport.ReplyErrorEncoder))
 	return AmqpHandlers{
 		createUserSubscriber,
 		getUserSubscriber,
 	}
-}
-
-func commonMiddleware(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Add("Content-Type", "application/json")
-		next.ServeHTTP(w, r)
-	})
 }
 
 //func (s *AmqpSubscriber) StartConsume(ch *amqp.Channel, queueName string, errs chan error) {

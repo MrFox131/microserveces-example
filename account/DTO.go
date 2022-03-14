@@ -25,11 +25,11 @@ type (
 	}
 )
 
-func encodeResponse(ctx context.Context, w http.ResponseWriter, response interface{}) error {
+func encodeResponse(_ context.Context, w http.ResponseWriter, response interface{}) error {
 	return json.NewEncoder(w).Encode(response)
 }
 
-func decodeUserReq(ctx context.Context, r *http.Request) (interface{}, error) {
+func decodeUserReq(_ context.Context, r *http.Request) (interface{}, error) {
 	var req CreateUserRequest
 	err := json.NewDecoder(r.Body).Decode(&req)
 	if err != nil {
@@ -38,7 +38,7 @@ func decodeUserReq(ctx context.Context, r *http.Request) (interface{}, error) {
 	return req, nil
 }
 
-func decodeEmailReq(ctx context.Context, r *http.Request) (interface{}, error) {
+func decodeEmailReq(_ context.Context, r *http.Request) (interface{}, error) {
 	var req GetUserRequest
 	vars := mux.Vars(r)
 
@@ -49,7 +49,7 @@ func decodeEmailReq(ctx context.Context, r *http.Request) (interface{}, error) {
 	return req, nil
 }
 
-func decodeUserAMQPReq(ctx context.Context, delivery *amqp.Delivery) (request interface{}, err error) {
+func decodeUserAMQPReq(_ context.Context, delivery *amqp.Delivery) (request interface{}, err error) {
 	var req CreateUserRequest
 	if err := json.Unmarshal(delivery.Body, &req); err != nil {
 		return nil, err
@@ -58,7 +58,7 @@ func decodeUserAMQPReq(ctx context.Context, delivery *amqp.Delivery) (request in
 	return req, nil
 }
 
-func decodeEmailAMQPReq(ctx context.Context, delivery *amqp.Delivery) (request interface{}, err error) {
+func decodeEmailAMQPReq(_ context.Context, delivery *amqp.Delivery) (request interface{}, err error) {
 	var req GetUserRequest
 	if err := json.Unmarshal(delivery.Body, &req); err != nil {
 		return nil, err
@@ -67,7 +67,7 @@ func decodeEmailAMQPReq(ctx context.Context, delivery *amqp.Delivery) (request i
 	return req, nil
 }
 
-func encodeAMQPResponse(ctx context.Context, amqpPublishing *amqp.Publishing, res interface{}) error {
+func encodeAMQPResponse(_ context.Context, amqpPublishing *amqp.Publishing, res interface{}) error {
 	responseString, err := json.Marshal(res)
 	if err != nil {
 		return err
@@ -76,4 +76,3 @@ func encodeAMQPResponse(ctx context.Context, amqpPublishing *amqp.Publishing, re
 	amqpPublishing.Body = responseString
 	return nil
 }
-

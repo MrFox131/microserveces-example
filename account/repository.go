@@ -14,7 +14,7 @@ type repo struct {
 	logger log.Logger
 }
 
-func (r repo) CreateUser(ctx context.Context, user User) error {
+func (r repo) CreateUser(_ context.Context, user User) error {
 	sql := `INSERT INTO users (id, email, password) 
 		VALUES($1, $2, $3)`
 
@@ -29,7 +29,7 @@ func (r repo) CreateUser(ctx context.Context, user User) error {
 	return nil
 }
 
-func (r repo) Getuser(ctx context.Context, ID string) (string, error) {
+func (r repo) Getuser(_ context.Context, ID string) (string, error) {
 	var email string
 	err := r.db.QueryRow(`SELECT email FROM users WHERE id=$1`, ID).Scan(&email)
 	if err != nil {
