@@ -16,6 +16,7 @@ import (
 	"syscall"
 )
 
+//TODO: get from .env with localhost by default
 const dbSource = "postgresql://postgres:postgres@postgres-service:5432/gokit?sslmode=disable"
 
 const amqpSource = "amqp://guest:guest@rabbitmq:5672/"
@@ -38,12 +39,6 @@ func main() {
 
 	level.Info(logger).Log("msg", "service started")
 	defer level.Info(logger).Log("msg", "service stopped")
-
-	amqpServer, err := amqp.Dial(amqpSource)
-	if err != nil {
-		level.Error(logger).Log("error", "unable to connect to amqp server", "reason", err)
-		os.Exit(-1)
-	}
 
 	var db *sql.DB
 	{
@@ -71,111 +66,121 @@ func main() {
 
 	endpoints := account.MakeEndpoints(srv)
 
+	//runs http server
 	go func() {
 		fmt.Println("listening on port", *httpAddr)
 		handler := account.NewHTTPServer(ctx, endpoints)
 		errs <- http.ListenAndServe(*httpAddr, handler)
 	}()
 
+	// initialize amqp
 	{
-		fmt.Println("starting amqp listener")
-		subs := account.NewAMQPSubscribers(ctx, endpoints)
+		amqpServer, err := amqp.Dial(amqpSource)
+		if err != nil {
+			level.Error(logger).Log("error", "unable to connect to amqp server", "reason", err)
+			os.Exit(-1)
+		}
 
-		go func() {
-			ch, err := amqpServer.Channel()
-			err = ch.ExchangeDeclare(
-				"external_exchange", // name
-				"direct",            // type
-				true,                // durable
-				false,               // auto-deleted
-				false,               // internal
-				false,               // no-wait
-				nil,                 // arguments
-			)
-			failOnError(err, logger)
-			consumer := subs.CrateUserSubscriber.ServeDelivery(ch)
-			queue, err := ch.QueueDeclare(
-				"test_queue",
-				false,
-				false,
-				false,
-				false,
-				nil,
-			)
-			failOnError(err, logger)
+		{
+			fmt.Println("starting amqp listener")
+			subs := account.NewAMQPSubscribers(ctx, endpoints)
 
-			err = ch.QueueBind(
-				queue.Name,
-				"user.create",
-				"external_exchange",
-				false,
-				nil,
-			)
-			failOnError(err, logger)
+			go func() {
+				ch, err := amqpServer.Channel()
+				err = ch.ExchangeDeclare(
+					"external_exchange", // name
+					"direct",            // type
+					true,                // durable
+					false,               // auto-deleted
+					false,               // internal
+					false,               // no-wait
+					nil,                 // arguments
+				)
+				failOnError(err, logger)
+				consumer := subs.CrateUserSubscriber.ServeDelivery(ch)
+				queue, err := ch.QueueDeclare(
+					"test_queue",
+					false,
+					false,
+					false,
+					false,
+					nil,
+				)
+				failOnError(err, logger)
 
-			msgs, err := ch.Consume(
-				"test_queue",
-				"",
-				true,
-				false,
-				false,
-				false,
-				nil,
-			)
-			failOnError(err, logger)
+				err = ch.QueueBind(
+					queue.Name,
+					"user.create",
+					"external_exchange",
+					false,
+					nil,
+				)
+				failOnError(err, logger)
 
-			for msg := range msgs {
-				consumer(&msg)
-			}
-		}()
-		go func() {
-			ch, err := amqpServer.Channel()
-			err = ch.ExchangeDeclare(
-				"external_exchange", // name
-				"direct",            // type
-				true,                // durable
-				false,               // auto-deleted
-				false,               // internal
-				false,               // no-wait
-				nil,                 // arguments
-			)
-			failOnError(err, logger)
+				msgs, err := ch.Consume(
+					"test_queue",
+					"",
+					true,
+					false,
+					false,
+					false,
+					nil,
+				)
+				failOnError(err, logger)
 
-			consumer := subs.GetUserSubscriber.ServeDelivery(ch)
-			queue, err := ch.QueueDeclare(
-				"getUserQueue",
-				false,
-				false,
-				false,
-				false,
-				nil,
-			)
-			failOnError(err, logger)
+				for msg := range msgs {
+					consumer(&msg)
+				}
+			}() //initiate createUser consumer
+			go func() {
+				ch, err := amqpServer.Channel()
+				err = ch.ExchangeDeclare(
+					"external_exchange", // name
+					"direct",            // type
+					true,                // durable
+					false,               // auto-deleted
+					false,               // internal
+					false,               // no-wait
+					nil,                 // arguments
+				)
+				failOnError(err, logger)
 
-			err = ch.QueueBind(
-				queue.Name,
-				"user.get",
-				"external_exchange",
-				false,
-				nil,
-			)
-			failOnError(err, logger)
+				consumer := subs.GetUserSubscriber.ServeDelivery(ch)
+				queue, err := ch.QueueDeclare(
+					"getUserQueue",
+					false,
+					false,
+					false,
+					false,
+					nil,
+				)
+				failOnError(err, logger)
 
-			msgs, err := ch.Consume(
-				queue.Name,
-				"",
-				true,
-				false,
-				false,
-				false,
-				nil,
-			)
-			failOnError(err, logger)
+				err = ch.QueueBind(
+					queue.Name,
+					"user.get",
+					"external_exchange",
+					false,
+					nil,
+				)
+				failOnError(err, logger)
 
-			for msg := range msgs {
-				consumer(&msg)
-			}
-		}()
+				msgs, err := ch.Consume(
+					queue.Name,
+					"",
+					true,
+					false,
+					false,
+					false,
+					nil,
+				)
+				failOnError(err, logger)
+
+				for msg := range msgs {
+					consumer(&msg)
+				}
+			}() //initiate getEmail consumer
+		}
 	}
 
 	level.Error(logger).Log("exit", <-errs)
